@@ -146,7 +146,7 @@ pub const BOSType = enum(u8) {
     pub const usb_2_0_extension_size = 7;
     pub const ss_usb_device_capability_size = 10;
     pub const container_id_size = 20;
-    pub const platform_descriptor = 20;
+    pub const platform_descriptor_size = 20;
 
     pub const max_size = DescriptorType.bos_size + usb_2_0_extension_size + ss_usb_device_capability_size + container_id_size;
 };
@@ -335,7 +335,7 @@ pub const EndpointDescriptor = extern struct {
         none = 0x0,
 
         /// Asynchronous
-        @"async" = 0x1,
+        async = 0x1,
 
         /// Adaptive
         adaptive = 0x2,
@@ -661,7 +661,7 @@ pub const BOSDescriptor = extern struct {
 
     /// bNumDeviceCap Device Capability Descriptors
     pub fn dev_capability(self: *const BOSDescriptor) []const BOSDeviceCapabilityDescriptor {
-        return (@as([*c]const BOSDeviceCapabilityDescriptor, @alignCast(@ptrCast(@as([*c]const u8, @ptrCast(self)) + @sizeOf(BOSDescriptor)))))[0..self.bNumDeviceCaps];
+        return (@as([*c]const BOSDeviceCapabilityDescriptor, @ptrCast(@alignCast(@as([*c]const u8, @ptrCast(self)) + @sizeOf(BOSDescriptor)))))[0..self.bNumDeviceCaps];
     }
 };
 
@@ -686,13 +686,13 @@ pub const USB20ExtensionDescriptor = extern struct {
     /// A value of one in a bit location indicates a feature is
     /// supported; a value of zero indicates it is not supported.
     /// See libusb_usb_2_0_extension_attributes.
-    bmAttributes: packed struct {
+    bmAttributes: packed struct(u32) {
         _0: u1,
 
         /// Supports Link Power Management (LPM)
         lpm_support: bool,
 
-        _1: u6,
+        _1: u30,
     },
 };
 
@@ -959,7 +959,7 @@ pub const ErrorCode = enum(c_int) {
     }
 };
 
-pub const Error = @typeInfo(@typeInfo(@TypeOf(ErrorCode.result)).Fn.return_type.?).ErrorUnion.error_set;
+pub const Error = @typeInfo(@typeInfo(@TypeOf(ErrorCode.result)).@"fn".return_type.?).error_union.error_set;
 
 pub const UsizeOrErrorCode = enum(isize) {
     _,
@@ -985,7 +985,7 @@ pub const U32OrErrorCode = enum(c_int) {
     }
 };
 
-pub const error_count = @typeInfo(ErrorCode).Enum.fields.len;
+pub const error_count = @typeInfo(ErrorCode).@"enum".fields.len;
 
 /// Transfer status codes
 pub const TransferStatus = enum(c_int) {
@@ -1123,7 +1123,7 @@ pub const Transfer = extern struct {
 
     /// Callback function. This will be invoked when the transfer completes,
     /// fails, or is cancelled.
-    callback: ?*const fn (*Transfer) callconv(.C) void,
+    callback: ?*const fn (*Transfer) callconv(.c) void,
 
     /// User context data. Useful for associating specific data to a transfer
     /// that can be accessed from within the callback function.
@@ -1146,7 +1146,7 @@ pub const Transfer = extern struct {
 
     /// Isochronous packet descriptors, for isochronous transfers only.
     pub fn iso_packet_desc(self: *const Transfer) []const ISOPacketDescriptor {
-        return (@as([*c]const ISOPacketDescriptor, @alignCast(@ptrCast(@as([*c]const u8, @ptrCast(self)) + @sizeOf(Transfer)))))[0..self.num_iso_packets];
+        return (@as([*c]const ISOPacketDescriptor, @ptrCast(@alignCast(@as([*c]const u8, @ptrCast(self)) + @sizeOf(Transfer)))))[0..self.num_iso_packets];
     }
 
     pub fn init(iso_packets: u31) !Transfer {
@@ -1285,13 +1285,13 @@ pub const InitOptions = struct {
     use_usbdk: ?void = null,
     no_device_discovery: ?void = null,
 
-    const max = @typeInfo(c.Option).Enum.fields.len;
+    const max = @typeInfo(c.Option).@"enum".fields.len;
 
     fn toInitOptionArray(self: InitOptions) std.meta.Tuple(&.{ [max]c.InitOption, usize }) {
         var init_options_arr: [max]c.InitOption = undefined;
         var option_count: usize = 0;
-        const InitOptionValueUnion = @typeInfo(c.InitOption).Struct.fields[1].type;
-        inline for (@typeInfo(InitOptions).Struct.fields) |field| {
+        const InitOptionValueUnion = @typeInfo(c.InitOption).@"struct".fields[1].type;
+        inline for (@typeInfo(InitOptions).@"struct".fields) |field| {
             if (@field(self, field.name)) |value| {
                 init_options_arr[option_count] = .{
                     .option = @field(c.Option, field.name),
@@ -1441,7 +1441,7 @@ pub const ClaimedInterface = struct {
         timeout: c_uint,
 
         fn writeFn(context: *const anyopaque, bytes: []const u8) Error!usize {
-            const self: *const Writable = @alignCast(@ptrCast(context));
+            const self: *const Writable = @ptrCast(@alignCast(context));
             var written: c_int = 0;
             c.libusb_bulk_transfer(self.device_handle, self.endpoint, @constCast(bytes.ptr), @intCast(bytes.len), &written, self.timeout).result() catch |err| {
                 if (err != error.OperationTimedOut) {
@@ -1475,7 +1475,7 @@ pub const ClaimedInterface = struct {
         timeout: c_uint,
 
         fn readFn(context: *const anyopaque, buffer: []u8) Error!usize {
-            const self: *const Readable = @alignCast(@ptrCast(context));
+            const self: *const Readable = @ptrCast(@alignCast(context));
             var read: c_int = 0;
             c.libusb_bulk_transfer(self.device_handle, self.endpoint, buffer.ptr, @intCast(buffer.len), &read, self.timeout).result() catch |err| {
                 if (err != error.OperationTimedOut) {
@@ -1562,7 +1562,7 @@ test "init context log level" {
 test "init context log callback" {
     const ctx = try Context.init(.{
         .log_cb = (struct {
-            fn test_log_cb(_: *Context, _: LogLevel, _: [*c]const u8) callconv(.C) void {}
+            fn test_log_cb(_: *Context, _: LogLevel, _: [*c]const u8) callconv(.c) void {}
         }).test_log_cb,
     });
     defer ctx.deinit();

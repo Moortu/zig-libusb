@@ -1,7 +1,26 @@
 const std = @import("std");
 
-fn defineBool(b: bool) ?u1 {
-    return if (b) 1 else null;
+const common_sources = &.{
+    "core.c",
+    "descriptor.c",
+    "hotplug.c",
+    "io.c",
+    "strerror.c",
+    "sync.c",
+};
+
+const posix_platform_sources = &.{
+    "events_posix.c",
+    "threads_posix.c",
+};
+
+const windows_platform_sources = &.{
+    "events_windows.c",
+    "threads_windows.c",
+};
+
+fn defineFromBool(value: bool) ?u1 {
+    return if (value) 1 else null;
 }
 
 const ConfigureOptions = struct {
@@ -14,71 +33,46 @@ const ConfigureOptions = struct {
 
 fn configureLibusb(
     dep: *std.Build.Dependency,
-    m: *std.Build.Module,
+    module: *std.Build.Module,
     config_header: *std.Build.Step.ConfigHeader,
     options: ConfigureOptions,
 ) void {
-    const target = m.resolved_target.?.result;
-    const is_posix = target.os.tag != .windows; // this is an assumption made by libusb
+    const target = module.resolved_target.?.result;
+    const is_posix = target.os.tag != .windows;
 
-    m.link_libc = true;
+    module.link_libc = true;
+    module.addIncludePath(dep.path("libusb"));
 
-    m.addIncludePath(dep.path("libusb"));
-
-    if (target.isDarwin()) {
-        m.addIncludePath(dep.path("Xcode"));
+    if (target.os.tag.isDarwin()) {
+        module.addIncludePath(dep.path("Xcode"));
     } else if (target.abi == .msvc) {
-        m.addIncludePath(dep.path("msvc"));
+        module.addIncludePath(dep.path("msvc"));
     } else if (target.abi == .android) {
-        m.addIncludePath(dep.path("android"));
+        module.addIncludePath(dep.path("android"));
     } else {
-        m.addConfigHeader(config_header);
+        module.addConfigHeader(config_header);
     }
 
-    m.addCSourceFiles(.{
+    module.addCSourceFiles(.{
         .root = dep.path("libusb"),
-        .files = &.{
-            "core.c",
-            "descriptor.c",
-            "hotplug.c",
-            "io.c",
-            "strerror.c",
-            "sync.c",
-        },
+        .files = common_sources,
     });
 
-    // add platform sources
-    if (is_posix) {
-        m.addCSourceFiles(.{
-            .root = dep.path("libusb/os"),
-            .files = &.{
-                "events_posix.c",
-                "threads_posix.c",
-            },
-        });
-    } else {
-        m.addCSourceFiles(.{
-            .root = dep.path("libusb/os"),
-            .files = &.{
-                "events_windows.c",
-                "threads_windows.c",
-            },
-        });
-    }
+    module.addCSourceFiles(.{
+        .root = dep.path("libusb/os"),
+        .files = if (is_posix) posix_platform_sources else windows_platform_sources,
+    });
 
-    // add os sources
     if (target.os.tag.isDarwin()) {
-        m.addCSourceFiles(.{
+        module.addCSourceFiles(.{
             .root = dep.path("libusb/os"),
-            .files = &.{
-                "darwin_usb.c",
-            },
+            .files = &.{"darwin_usb.c"},
         });
-        m.linkFramework("IOKit", .{});
-        m.linkFramework("CoreFoundation", .{});
-        m.linkFramework("Security", .{});
+        module.linkFramework("IOKit", .{});
+        module.linkFramework("CoreFoundation", .{});
+        module.linkFramework("Security", .{});
     } else if (target.os.tag == .linux) {
-        m.addCSourceFiles(.{
+        module.addCSourceFiles(.{
             .root = dep.path("libusb/os"),
             .files = &.{
                 "linux_usbfs.c",
@@ -86,11 +80,11 @@ fn configureLibusb(
             },
         });
         if (options.enable_udev) {
-            m.linkSystemLibrary("udev", .{});
+            module.linkSystemLibrary("udev", .{});
         }
     } else if (target.os.tag == .windows) {
-        m.addWin32ResourceFile(.{ .file = dep.path("libusb/libusb-1.0.rc") });
-        m.addCSourceFiles(.{
+        module.addWin32ResourceFile(.{ .file = dep.path("libusb/libusb-1.0.rc") });
+        module.addCSourceFiles(.{
             .root = dep.path("libusb/os"),
             .files = &.{
                 "windows_common.c",
@@ -99,21 +93,17 @@ fn configureLibusb(
             },
         });
     } else if (target.os.tag == .netbsd) {
-        m.addCSourceFiles(.{
+        module.addCSourceFiles(.{
             .root = dep.path("libusb/os"),
-            .files = &.{
-                "netbsd_usb.c",
-            },
+            .files = &.{"netbsd_usb.c"},
         });
     } else if (target.os.tag == .openbsd) {
-        m.addCSourceFiles(.{
+        module.addCSourceFiles(.{
             .root = dep.path("libusb/os"),
-            .files = &.{
-                "openbsd_usb.c",
-            },
+            .files = &.{"openbsd_usb.c"},
         });
     } else if (target.os.tag == .haiku) {
-        m.addCSourceFiles(.{
+        module.addCSourceFiles(.{
             .root = dep.path("libusb/os"),
             .files = &.{
                 "haiku_pollfs.cpp",
@@ -121,15 +111,13 @@ fn configureLibusb(
                 "haiku_usb_raw.cpp",
             },
         });
-        m.linkSystemLibrary("be", .{});
+        module.linkSystemLibrary("be", .{});
     } else if (target.os.tag == .solaris) {
-        m.addCSourceFiles(.{
+        module.addCSourceFiles(.{
             .root = dep.path("libusb/os"),
-            .files = &.{
-                "sunos_usb.cpp",
-            },
+            .files = &.{"sunos_usb.cpp"},
         });
-        m.linkSystemLibrary("devinfo", .{});
+        module.linkSystemLibrary("devinfo", .{});
     }
 }
 
@@ -142,25 +130,19 @@ fn addLibrary(
     config_header: *std.Build.Step.ConfigHeader,
     options: ConfigureOptions,
 ) void {
-    const lib = std.Build.Step.Compile.create(b, .{
+    const lib = b.addLibrary(.{
         .name = "usb",
-
-        // TODO: read this from package manifest when it becomes possible
-        .version = .{ .major = 1, .minor = 0, .patch = 27 },
-
-        .kind = .lib,
+        .version = .{ .major = 1, .minor = 0, .patch = 29 },
         .linkage = linkage,
-
-        .root_module = .{
+        .root_module = b.createModule(.{
             .target = target,
             .optimize = optimize,
-        },
+            .link_libc = true,
+        }),
     });
 
-    configureLibusb(dep, &lib.root_module, config_header, options);
-
+    configureLibusb(dep, lib.root_module, config_header, options);
     lib.installHeader(dep.path("libusb/libusb.h"), "libusb.h");
-
     b.installArtifact(lib);
 }
 
@@ -173,10 +155,10 @@ pub fn build(b: *std.Build) void {
     const build_static = b.option(bool, "static", "Build static lib (default: true)") orelse true;
     const build_shared = b.option(bool, "shared", "Build shared lib (default: true)") orelse true;
     const enable_udev = b.option(bool, "enable_udev", "Use udev for device enumeration and hotplug support (default: false)") orelse false;
-    const enable_eventfd = b.option(bool, "enable_eventfd", "Use eventfd for signalling (default: false)") orelse false;
-    const enable_timerfd = b.option(bool, "enable_timerfd", "Use eventfd for timing (default: false)") orelse false;
-    const disable_log = b.option(bool, "disable_log", "disable all logging (default: false)") orelse false;
-    const enable_syslog = b.option(bool, "enable_system_log", "output logging messages to the systemwide log, if supported by the OS (default: false)") orelse false;
+    const enable_eventfd = b.option(bool, "enable_eventfd", "Use eventfd for signaling (default: false)") orelse false;
+    const enable_timerfd = b.option(bool, "enable_timerfd", "Use timerfd for timing (default: false)") orelse false;
+    const disable_log = b.option(bool, "disable_log", "Disable all logging (default: false)") orelse false;
+    const enable_syslog = b.option(bool, "enable_system_log", "Output logs to the system-wide log when supported (default: false)") orelse false;
 
     const options = ConfigureOptions{
         .enable_udev = enable_udev,
@@ -189,38 +171,36 @@ pub fn build(b: *std.Build) void {
     const config_header = b.addConfigHeader(.{ .style = .blank }, .{
         ._GNU_SOURCE = 1,
         .DEFAULT_VISIBILITY = .@"__attribute__ ((visibility (\"default\")))",
-        // .PRINTF_FORMAT = .@"__attribute__ ((__format__ (__printf__, a, b)))",
         .@"PRINTF_FORMAT(a, b)" = .@"/* */",
-        .PLATFORM_POSIX = defineBool(target.result.os.tag != .windows),
-        .PLATFORM_WINDOWS = defineBool(target.result.os.tag == .windows),
-
-        .HAVE_EVENTFD = defineBool(options.enable_eventfd),
-        .HAVE_TIMERFD = defineBool(options.enable_timerfd),
-
-        .ENABLE_LOGGING = defineBool(options.enable_logging),
-        // .ENABLE_DEBUG_LOGGING = defineBool(options.enable_logging and m.optimize.? == .Debug), // this redirects all contextual logs to the global log callback
-        .USE_SYSTEM_LOGGING_FACILITY = defineBool(options.enable_syslog),
+        .PLATFORM_POSIX = defineFromBool(target.result.os.tag != .windows),
+        .PLATFORM_WINDOWS = defineFromBool(target.result.os.tag == .windows),
+        .HAVE_EVENTFD = defineFromBool(options.enable_eventfd),
+        .HAVE_TIMERFD = defineFromBool(options.enable_timerfd),
+        .HAVE_CLOCK_GETTIME = defineFromBool(target.result.os.tag != .windows),
+        .ENABLE_LOGGING = defineFromBool(options.enable_logging),
+        .USE_SYSTEM_LOGGING_FACILITY = defineFromBool(options.enable_syslog),
     });
 
     if (build_static) addLibrary(b, dep, .static, target, optimize, config_header, options);
     if (build_shared) addLibrary(b, dep, .dynamic, target, optimize, config_header, options);
 
-    const m = b.addModule("libusb", .{
+    const libusb_module = b.addModule("libusb", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
     });
-
-    configureLibusb(dep, m, config_header, options);
+    configureLibusb(dep, libusb_module, config_header, options);
 
     const lib_unit_tests = b.addTest(.{
-        .root_source_file = b.path("src/root.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/root.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
+    configureLibusb(dep, lib_unit_tests.root_module, config_header, options);
 
-    configureLibusb(dep, &lib_unit_tests.root_module, config_header, options);
-
+    const run_tests = b.addRunArtifact(lib_unit_tests);
     const test_step = b.step("test", "Run unit tests");
-    test_step.dependOn(&b.addRunArtifact(lib_unit_tests).step);
+    test_step.dependOn(&run_tests.step);
 }
