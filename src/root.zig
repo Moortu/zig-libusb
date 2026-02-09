@@ -1417,6 +1417,34 @@ pub const DeviceHandle = opaque {
     pub fn clearHalt(self: *DeviceHandle, endpoint: Endpoint) !void {
         try c.libusb_clear_halt(self, endpoint.toU8()).result();
     }
+
+    /// Check if a kernel driver is active on an interface.
+    /// Returns true if a kernel driver is active, false if not.
+    /// On platforms where this is not supported (Windows, macOS), returns false.
+    pub fn kernelDriverActive(self: *DeviceHandle, interface_number: u8) !bool {
+        const rc = c.translated.libusb_kernel_driver_active(@ptrCast(self), @intCast(interface_number));
+        if (rc == 1) return true;
+        if (rc == 0) return false;
+        if (rc == @intFromEnum(ErrorCode.not_supported)) return false;
+        return @as(ErrorCode, @enumFromInt(rc)).toError();
+    }
+
+    /// Detach a kernel driver from an interface.
+    pub fn detachKernelDriver(self: *DeviceHandle, interface_number: u8) !void {
+        try c.libusb_detach_kernel_driver(self, @intCast(interface_number)).result();
+    }
+
+    /// Re-attach a kernel driver to an interface.
+    pub fn attachKernelDriver(self: *DeviceHandle, interface_number: u8) !void {
+        try c.libusb_attach_kernel_driver(self, @intCast(interface_number)).result();
+    }
+
+    /// Enable/disable automatic kernel driver detachment.
+    /// When enabled, libusb will automatically detach the kernel driver on
+    /// claimInterface() and re-attach it on releaseInterface().
+    pub fn setAutoDetachKernelDriver(self: *DeviceHandle, enable: bool) !void {
+        try c.libusb_set_auto_detach_kernel_driver(self, enable).result();
+    }
 };
 
 pub const ClaimedInterface = struct {
@@ -1504,6 +1532,38 @@ pub const ClaimedInterface = struct {
             .endpoint = endpoint.toU8(),
             .timeout = @intCast(timeout),
         };
+    }
+
+    /// Perform a synchronous interrupt read.
+    /// Returns the number of bytes actually transferred.
+    pub fn interruptRead(self: ClaimedInterface, endpoint: Endpoint, buffer: []u8, timeout: u32) !usize {
+        std.debug.assert(endpoint.direction == .input);
+        var transferred: c_int = 0;
+        try c.libusb_interrupt_transfer(
+            self.device_handle,
+            endpoint.toU8(),
+            buffer.ptr,
+            @intCast(buffer.len),
+            &transferred,
+            @intCast(timeout),
+        ).result();
+        return @intCast(transferred);
+    }
+
+    /// Perform a synchronous interrupt write.
+    /// Returns the number of bytes actually transferred.
+    pub fn interruptWrite(self: ClaimedInterface, endpoint: Endpoint, data: []const u8, timeout: u32) !usize {
+        std.debug.assert(endpoint.direction == .output);
+        var transferred: c_int = 0;
+        try c.libusb_interrupt_transfer(
+            self.device_handle,
+            endpoint.toU8(),
+            @constCast(data.ptr),
+            @intCast(data.len),
+            &transferred,
+            @intCast(timeout),
+        ).result();
+        return @intCast(transferred);
     }
 };
 

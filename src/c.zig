@@ -179,6 +179,33 @@ pub fn libusb_transfer_set_stream_id(transfer: *Transfer, stream_id: u32) void {
     translated.libusb_transfer_set_stream_id(@ptrCast(transfer), stream_id);
 }
 
+pub fn libusb_kernel_driver_active(dev_handle: *DeviceHandle, interface_number: c_int) U32OrErrorCode {
+    return castU32OrErrorCode(translated.libusb_kernel_driver_active(@ptrCast(dev_handle), interface_number));
+}
+
+pub fn libusb_detach_kernel_driver(dev_handle: *DeviceHandle, interface_number: c_int) ErrorCode {
+    return castErrorCode(translated.libusb_detach_kernel_driver(@ptrCast(dev_handle), interface_number));
+}
+
+pub fn libusb_attach_kernel_driver(dev_handle: *DeviceHandle, interface_number: c_int) ErrorCode {
+    return castErrorCode(translated.libusb_attach_kernel_driver(@ptrCast(dev_handle), interface_number));
+}
+
+pub fn libusb_set_auto_detach_kernel_driver(dev_handle: *DeviceHandle, enable: bool) ErrorCode {
+    return castErrorCode(translated.libusb_set_auto_detach_kernel_driver(@ptrCast(dev_handle), @intFromBool(enable)));
+}
+
+pub fn libusb_interrupt_transfer(
+    dev_handle: *DeviceHandle,
+    endpoint: u8,
+    data: [*]u8,
+    length: c_int,
+    transferred: *c_int,
+    timeout: c_uint,
+) ErrorCode {
+    return castErrorCode(translated.libusb_interrupt_transfer(@ptrCast(dev_handle), endpoint, data, length, transferred, timeout));
+}
+
 pub fn libusb_get_max_alt_packet_size(
     dev: *Device,
     interface_number: c_int,
