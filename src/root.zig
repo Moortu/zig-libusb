@@ -455,10 +455,11 @@ pub const InterfaceAssociationDescriptorArray = extern struct {
     length: u32,
 
     pub fn toSlice(self: InterfaceAssociationDescriptorArray) []const InterfaceAssociationDescriptor {
-        var slice: []const InterfaceAssociationDescriptor = undefined;
-        slice.ptr = self.iad;
-        slice.len = @intCast(self.length);
-        return slice;
+        if (self.iad) |iad| {
+            return iad[0..@intCast(self.length)];
+        }
+
+        return &.{};
     }
 };
 
@@ -790,9 +791,11 @@ pub const PlatformDescriptor = extern struct {
     PlatformCapabilityUUID: [16]u8,
 
     /// Capability data (bLength - 20)
-    pub fn CapabilityData(self: *const PlatformDescriptor) []const u8 {
+    pub fn capabilityData(self: *const PlatformDescriptor) []const u8 {
         return (@as([*c]const u8, @ptrCast(self)) + @sizeOf(PlatformDescriptor))[0 .. self.bLength - @sizeOf(PlatformDescriptor)];
     }
+
+    pub const CapabilityData = capabilityData;
 };
 
 /// Setup packet for control transfers.
@@ -944,7 +947,7 @@ pub const ErrorCode = enum(c_int) {
             .no_mem => return error.OutOfMemory,
             .not_supported => return error.OperationNotSupportedOrUnimplementedOnThisPlatform,
             .other => return error.Other,
-            else => return error.Uknown,
+            else => return error.Unknown,
         }
     }
 
@@ -1149,7 +1152,7 @@ pub const Transfer = extern struct {
         return (@as([*c]const ISOPacketDescriptor, @ptrCast(@alignCast(@as([*c]const u8, @ptrCast(self)) + @sizeOf(Transfer)))))[0..self.num_iso_packets];
     }
 
-    pub fn init(iso_packets: u31) !Transfer {
+    pub fn init(iso_packets: u31) !*Transfer {
         if (c.libusb_alloc_transfer(@intCast(iso_packets))) |tx| {
             return tx;
         }
@@ -1562,7 +1565,7 @@ test "init context log level" {
 test "init context log callback" {
     const ctx = try Context.init(.{
         .log_cb = (struct {
-            fn test_log_cb(_: *Context, _: LogLevel, _: [*c]const u8) callconv(.c) void {}
+            fn test_log_cb(_: ?*Context, _: LogLevel, _: [*c]const u8) callconv(.c) void {}
         }).test_log_cb,
     });
     defer ctx.deinit();

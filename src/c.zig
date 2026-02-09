@@ -41,7 +41,7 @@ const Pollfd = root.Pollfd;
 const HotplugCallbackHandle = root.HotplugCallbackHandle;
 const HotplugEvent = root.HotplugEvent;
 
-pub const LogCallbackFn = fn (*Context, LogLevel, [*c]const u8) callconv(.c) void;
+pub const LogCallbackFn = fn (?*Context, LogLevel, [*c]const u8) callconv(.c) void;
 
 /// Available option values for libusb_set_option() and libusb_init_context().
 pub const Option = enum(c_uint) {
@@ -750,7 +750,7 @@ pub extern fn libusb_get_max_alt_packet_size(
     alternate_setting: c_int,
     /// address of the endpoint in question
     endpoint: u8,
-) callconv(.c) ErrorCode;
+) callconv(.c) U32OrErrorCode;
 
 /// Get an array of interface association descriptors (IAD) for a given
 /// configuration.
@@ -1929,7 +1929,7 @@ test "init context log callback" {
             .option = .log_cb,
             .value = .{
                 .log_cb = (struct {
-                    fn test_log_cb(_: *Context, _: LogLevel, _: [*c]const u8) callconv(.c) void {}
+                    fn test_log_cb(_: ?*Context, _: LogLevel, _: [*c]const u8) callconv(.c) void {}
                 }).test_log_cb,
             },
         },
