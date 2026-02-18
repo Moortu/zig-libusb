@@ -1261,6 +1261,30 @@ pub const HotplugEvent = enum(c_int) {
     device_left = (1 << 1),
 };
 
+/// Since version 1.0.16, LIBUSB_API_VERSION >= 0x01000102
+///
+/// Hotplug flags
+pub const HotplugFlag = enum(c_int) {
+    /// No flags.
+    no_flags = 0,
+
+    /// Arm the callback and fire it for all matching currently attached devices.
+    enumerate = (1 << 0),
+};
+
+/// Wildcard value for hotplug matching (vendor_id, product_id, dev_class).
+pub const HOTPLUG_MATCH_ANY: c_int = -1;
+
+/// Hotplug callback function type.
+///
+/// The callback should do minimal processing and return quickly.
+/// Return 0 to keep the callback registered, or 1 to deregister it.
+///
+/// WARNING: Do not call any libusb functions that may block from within
+/// the callback (e.g. open, claimInterface). The callback may be invoked
+/// from an internal event handling thread.
+pub const HotplugCallbackFn = c.HotplugCallbackFn;
+
 /// Structure providing the version of the libusb runtime
 pub const Version = extern struct {
     /// Library major version.
@@ -1341,6 +1365,63 @@ pub const Context = opaque {
         var list: ?[*]*Device = null;
         const len = try c.libusb_get_device_list(self, &list).result();
         return list.?[0..len];
+    }
+
+    /// Check if the running libusb library supports a given capability.
+    pub fn hasCapability(capability: Capability) bool {
+        return c.libusb_has_capability(@intFromEnum(capability));
+    }
+
+    /// Register a hotplug callback.
+    ///
+    /// The callback fires when a device matching the given vendor_id, product_id,
+    /// and dev_class is plugged in or removed (depending on events).
+    /// Use HOTPLUG_MATCH_ANY for wildcard matching on any parameter.
+    ///
+    /// Returns a handle that can be used to deregister the callback.
+    pub fn hotplugRegisterCallback(
+        self: *Context,
+        events: HotplugEvent,
+        flags: HotplugFlag,
+        vendor_id: c_int,
+        product_id: c_int,
+        dev_class: c_int,
+        cb_fn: HotplugCallbackFn,
+        user_data: ?*anyopaque,
+    ) !HotplugCallbackHandle {
+        var handle: HotplugCallbackHandle = undefined;
+        try c.libusb_hotplug_register_callback(
+            self,
+            @intFromEnum(events),
+            @intFromEnum(flags),
+            vendor_id,
+            product_id,
+            dev_class,
+            cb_fn,
+            user_data,
+            &handle,
+        ).result();
+        return handle;
+    }
+
+    /// Deregister a hotplug callback.
+    ///
+    /// Safe to call from within a hotplug callback. Safe to call on an
+    /// already-deregistered handle.
+    pub fn hotplugDeregisterCallback(self: *Context, callback_handle: HotplugCallbackHandle) void {
+        c.libusb_hotplug_deregister_callback(self, callback_handle);
+    }
+
+    /// Handle any pending events.
+    ///
+    /// timeout_ms: maximum time to block waiting for events, in milliseconds.
+    /// Use 0 for non-blocking.
+    pub fn handleEventsTimeout(self: *Context, timeout_ms: u32) !void {
+        var tv: c.translated.struct_timeval = .{
+            .tv_sec = @intCast(timeout_ms / 1000),
+            .tv_usec = @intCast(@as(u64, timeout_ms % 1000) * 1000),
+        };
+        try c.libusb_handle_events_timeout(self, &tv).result();
     }
 };
 
@@ -1444,6 +1525,36 @@ pub const DeviceHandle = opaque {
     /// claimInterface() and re-attach it on releaseInterface().
     pub fn setAutoDetachKernelDriver(self: *DeviceHandle, enable: bool) !void {
         try c.libusb_set_auto_detach_kernel_driver(self, enable).result();
+    }
+
+    /// Perform a synchronous USB control transfer.
+    /// Returns the number of bytes actually transferred.
+    pub fn controlTransfer(
+        self: *DeviceHandle,
+        request_type: u8,
+        request: u8,
+        value: u16,
+        index: u16,
+        data: ?[]u8,
+        timeout: u32,
+    ) !usize {
+        const data_ptr: ?[*]u8 = if (data) |d| d.ptr else null;
+        const data_len: u16 = if (data) |d| @intCast(d.len) else 0;
+        const rc = c.libusb_control_transfer_raw(
+            self,
+            request_type,
+            request,
+            value,
+            index,
+            data_ptr,
+            data_len,
+            @intCast(timeout),
+        );
+        if (rc < 0) {
+            const err: ErrorCode = @enumFromInt(rc);
+            return err.toError();
+        }
+        return @intCast(rc);
     }
 };
 

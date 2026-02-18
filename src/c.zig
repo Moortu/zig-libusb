@@ -206,6 +206,74 @@ pub fn libusb_interrupt_transfer(
     return castErrorCode(translated.libusb_interrupt_transfer(@ptrCast(dev_handle), endpoint, data, length, transferred, timeout));
 }
 
+pub fn libusb_control_transfer(
+    dev_handle: *DeviceHandle,
+    bmRequestType: u8,
+    bRequest: u8,
+    wValue: u16,
+    wIndex: u16,
+    data: ?[*]u8,
+    wLength: u16,
+    timeout: c_uint,
+) ErrorCode {
+    const rc = translated.libusb_control_transfer(@ptrCast(dev_handle), bmRequestType, bRequest, wValue, wIndex, data, wLength, timeout);
+    // libusb_control_transfer returns number of bytes on success (>= 0) or error code (< 0)
+    if (rc >= 0) return .success;
+    return castErrorCode(rc);
+}
+
+/// Raw version that returns the byte count or error code.
+pub fn libusb_control_transfer_raw(
+    dev_handle: *DeviceHandle,
+    bmRequestType: u8,
+    bRequest: u8,
+    wValue: u16,
+    wIndex: u16,
+    data: ?[*]u8,
+    wLength: u16,
+    timeout: c_uint,
+) c_int {
+    return translated.libusb_control_transfer(@ptrCast(dev_handle), bmRequestType, bRequest, wValue, wIndex, data, wLength, timeout);
+}
+
+pub fn libusb_has_capability(capability: u32) bool {
+    return translated.libusb_has_capability(capability) != 0;
+}
+
+pub fn libusb_handle_events_timeout(ctx: ?*Context, tv: *translated.struct_timeval) ErrorCode {
+    return castErrorCode(translated.libusb_handle_events_timeout(@ptrCast(ctx), tv));
+}
+
+pub const HotplugCallbackFn = *const fn (?*Context, ?*Device, HotplugEvent, ?*anyopaque) callconv(.c) c_int;
+
+pub fn libusb_hotplug_register_callback(
+    ctx: ?*Context,
+    events: c_int,
+    flags: c_int,
+    vendor_id: c_int,
+    product_id: c_int,
+    dev_class: c_int,
+    cb_fn: HotplugCallbackFn,
+    user_data: ?*anyopaque,
+    callback_handle: ?*HotplugCallbackHandle,
+) ErrorCode {
+    return castErrorCode(translated.libusb_hotplug_register_callback(
+        @ptrCast(ctx),
+        events,
+        flags,
+        vendor_id,
+        product_id,
+        dev_class,
+        @ptrCast(cb_fn),
+        user_data,
+        callback_handle,
+    ));
+}
+
+pub fn libusb_hotplug_deregister_callback(ctx: ?*Context, callback_handle: HotplugCallbackHandle) void {
+    translated.libusb_hotplug_deregister_callback(@ptrCast(ctx), callback_handle);
+}
+
 pub fn libusb_get_max_alt_packet_size(
     dev: *Device,
     interface_number: c_int,
