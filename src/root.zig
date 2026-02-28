@@ -1314,7 +1314,7 @@ pub const InitOptions = struct {
 
     const max = @typeInfo(c.Option).@"enum".fields.len;
 
-    fn toInitOptionArray(self: InitOptions) std.meta.Tuple(&.{ [max]c.InitOption, usize }) {
+    fn toInitOptionArray(self: InitOptions) @Tuple(&.{ [max]c.InitOption, usize }) {
         var init_options_arr: [max]c.InitOption = undefined;
         var option_count: usize = 0;
         const InitOptionValueUnion = @typeInfo(c.InitOption).@"struct".fields[1].type;
@@ -1469,7 +1469,7 @@ pub const Device = opaque {
         return c.libusb_get_bus_number(self);
     }
 
-    pub fn getPortNumbers(self: *Device) !std.meta.Tuple(&.{ [7]u8, usize }) {
+    pub fn getPortNumbers(self: *Device) !@Tuple(&.{ [7]u8, usize }) {
         var ports: [7]u8 = undefined;
         const len = try c.libusb_get_port_numbers(self, &ports, 7).result();
         return .{ ports, @intCast(len) };
@@ -1594,11 +1594,8 @@ pub const ClaimedInterface = struct {
             return @intCast(written);
         }
 
-        pub fn writer(self: *const Writable) std.io.AnyWriter {
-            return .{
-                .context = self,
-                .writeFn = writeFn,
-            };
+        pub fn write(self: *const Writable, bytes: []const u8) Error!usize {
+            return writeFn(@ptrCast(self), bytes);
         }
     };
 
@@ -1628,11 +1625,8 @@ pub const ClaimedInterface = struct {
             return @intCast(read);
         }
 
-        pub fn reader(self: *const Readable) std.io.AnyReader {
-            return .{
-                .context = self,
-                .readFn = readFn,
-            };
+        pub fn read(self: *const Readable, buffer: []u8) Error!usize {
+            return readFn(@ptrCast(self), buffer);
         }
     };
 

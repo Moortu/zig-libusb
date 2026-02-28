@@ -112,7 +112,7 @@ fn configureLibusb(
             },
         });
         module.linkSystemLibrary("be", .{});
-    } else if (target.os.tag == .solaris) {
+    } else if (target.os.tag == .illumos) {
         module.addCSourceFiles(.{
             .root = dep.path("libusb/os"),
             .files = &.{"sunos_usb.cpp"},
