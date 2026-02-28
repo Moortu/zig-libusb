@@ -1618,14 +1618,14 @@ pub const ClaimedInterface = struct {
 
         fn readFn(context: *const anyopaque, buffer: []u8) Error!usize {
             const self: *const Readable = @ptrCast(@alignCast(context));
-            var bytes_read: c_int = 0;
-            c.libusb_bulk_transfer(self.device_handle, self.endpoint, buffer.ptr, @intCast(buffer.len), &bytes_read, self.timeout).result() catch |err| {
+            var read: c_int = 0;
+            c.libusb_bulk_transfer(self.device_handle, self.endpoint, buffer.ptr, @intCast(buffer.len), &read, self.timeout).result() catch |err| {
                 if (err != error.OperationTimedOut) {
                     return err;
                 }
             };
 
-            return @intCast(bytes_read);
+            return @intCast(read);
         }
 
         pub fn reader(self: *const Readable) std.io.AnyReader {
