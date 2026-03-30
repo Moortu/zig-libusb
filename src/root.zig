@@ -273,7 +273,7 @@ pub const DeviceDescriptor = extern struct {
 /// Bits 0:3 are the endpoint number. Bits 4:6 are reserved. Bit 7 indicates direction
 ///
 /// See https://libusb.sourceforge.io/api-1.0/structlibusb__endpoint__descriptor.html#a111d087a09cbeded8e15eda9127e23d2
-pub const Endpoint = packed struct {
+pub const Endpoint = packed struct(u8) {
     pub const Direction = enum(u1) {
         output,
         input,
@@ -376,7 +376,7 @@ pub const EndpointDescriptor = extern struct {
     /// for isochronous endpoints and correspond to libusb_iso_sync_type.
     /// Bits 4:5 are also only used for isochronous endpoints and correspond to
     /// libusb_iso_usage_type. Bits 6:7 are reserved.
-    bmAttributes: packed struct {
+    bmAttributes: packed struct(u8) {
         transfer_type: TransferType,
         iso_sync_type: ISOSyncType,
         iso_usage_type: ISOUsageType,
@@ -718,7 +718,7 @@ pub const SSUSBDeviceCapabilityDescriptor = extern struct {
     /// A value of one in a bit location indicates a feature is
     /// supported; a value of zero indicates it is not supported.
     /// See libusb_ss_usb_device_capability_attributes.
-    bmAttributes: packed struct {
+    bmAttributes: packed struct(u8) {
         _0: u1,
 
         /// Supports Latency Tolerance Messages (LTM)
@@ -799,7 +799,7 @@ pub const PlatformDescriptor = extern struct {
 };
 
 /// Setup packet for control transfers.
-pub const ControlSetup = packed struct {
+pub const ControlSetup = packed struct(u64) {
     pub const RequestRecipient = enum(u2) {
         /// Device
         device,
@@ -834,7 +834,7 @@ pub const ControlSetup = packed struct {
     };
 
     /// Request type.
-    bmRequestType: packed struct {
+    bmRequestType: packed struct(u8) {
         recipient: RequestRecipient,
         type: RequestType,
         direction: RequestDirection,
@@ -1053,7 +1053,7 @@ pub const Transfer = extern struct {
     /// Handle of the device that this transfer will be submitted to
     dev_handle: *DeviceHandle,
 
-    flags: packed struct {
+    flags: packed struct(u8) {
         /// Report short frames as errors
         short_not_ok: bool,
 
