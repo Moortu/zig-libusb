@@ -988,7 +988,7 @@ pub const U32OrErrorCode = enum(c_int) {
     }
 };
 
-pub const error_count = @typeInfo(ErrorCode).@"enum".fields.len;
+pub const error_count = @typeInfo(ErrorCode).@"enum".field_names.len;
 
 /// Transfer status codes
 pub const TransferStatus = enum(c_int) {
@@ -1312,17 +1312,17 @@ pub const InitOptions = struct {
     use_usbdk: ?void = null,
     no_device_discovery: ?void = null,
 
-    const max = @typeInfo(c.Option).@"enum".fields.len;
+    const max = @typeInfo(c.Option).@"enum".field_names.len;
 
     fn toInitOptionArray(self: InitOptions) @Tuple(&.{ [max]c.InitOption, usize }) {
         var init_options_arr: [max]c.InitOption = undefined;
         var option_count: usize = 0;
-        const InitOptionValueUnion = @typeInfo(c.InitOption).@"struct".fields[1].type;
-        inline for (@typeInfo(InitOptions).@"struct".fields) |field| {
-            if (@field(self, field.name)) |value| {
+        const InitOptionValueUnion = @typeInfo(c.InitOption).@"struct".field_types[1];
+        inline for (@typeInfo(InitOptions).@"struct".field_names) |field_name| {
+            if (@field(self, field_name)) |value| {
                 init_options_arr[option_count] = .{
-                    .option = @field(c.Option, field.name),
-                    .value = @unionInit(InitOptionValueUnion, if (@TypeOf(value) == void) "void" else field.name, value),
+                    .option = @field(c.Option, field_name),
+                    .value = @unionInit(InitOptionValueUnion, if (@TypeOf(value) == void) "void" else field_name, value),
                 };
                 option_count += 1;
             }
