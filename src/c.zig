@@ -2,9 +2,7 @@ const std = @import("std");
 const testing = std.testing;
 const root = @import("./root.zig");
 
-pub const translated = @cImport({
-    @cInclude("libusb.h");
-});
+pub const translated = @import("libusb_c");
 
 pub const ClassCode = root.ClassCode;
 pub const DescriptorType = root.DescriptorType;

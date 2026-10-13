@@ -1692,9 +1692,7 @@ pub fn freeDeviceList(device_list: []*Device, unref_devices: bool) void {
 }
 
 test "struct sizes" {
-    const realc = @cImport({
-        @cInclude("libusb.h");
-    });
+    const realc = @import("libusb_c");
 
     try testing.expectEqual(@sizeOf(realc.struct_libusb_device_descriptor), @sizeOf(DeviceDescriptor));
     try testing.expectEqual(@sizeOf(realc.struct_libusb_endpoint_descriptor), @sizeOf(EndpointDescriptor));

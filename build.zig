@@ -184,11 +184,19 @@ pub fn build(b: *std.Build) void {
     if (build_static) addLibrary(b, dep, .static, target, optimize, config_header, options);
     if (build_shared) addLibrary(b, dep, .dynamic, target, optimize, config_header, options);
 
+    const translate_c = b.addTranslateC(.{
+        .root_source_file = dep.path("libusb/libusb.h"),
+        .target = target,
+        .optimize = optimize,
+    });
+    const libusb_c_module = translate_c.createModule();
+
     const libusb_module = b.addModule("libusb", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
     });
+    libusb_module.addImport("libusb_c", libusb_c_module);
     configureLibusb(dep, libusb_module, config_header, options);
 
     const lib_unit_tests = b.addTest(.{
@@ -198,6 +206,7 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
         }),
     });
+    lib_unit_tests.root_module.addImport("libusb_c", libusb_c_module);
     configureLibusb(dep, lib_unit_tests.root_module, config_header, options);
 
     const run_tests = b.addRunArtifact(lib_unit_tests);
